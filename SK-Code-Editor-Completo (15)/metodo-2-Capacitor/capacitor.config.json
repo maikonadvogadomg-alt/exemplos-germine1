@@ -1,0 +1,14 @@
+{
+  "appId": "com.skeditor.app",
+  "appName": "SK Code Editor",
+  "webDir": "../web-app",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}
