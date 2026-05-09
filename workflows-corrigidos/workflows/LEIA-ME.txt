@@ -1,0 +1,24 @@
+=== WORKFLOWS CORRIGIDOS - SK Code Editor + DevMobile ===
+
+DEVMOBILE (Expo/React Native):
+  DevMobile-build-apk-eas.yml    → EAS Cloud Build (recomendado)
+                                    Adicione EXPO_TOKEN nos Secrets do GitHub
+  DevMobile-build-apk-local.yml  → Capacitor local (alternativa)
+
+SK CODE EDITOR (React/Vite PWA):
+  SKCodeEditor-build-apk.yml     → APK via TWA (Trusted Web Activity)
+  SKCodeEditor-deploy.yml        → Deploy GitHub Pages
+
+REPOS EXISTENTES (htmlcssjs-android, github-android, etc.):
+  build-apk-CORRIGIDO-repos-existentes.yml
+    → Substitua o build-apk.yml nos seus repos por esse arquivo
+    → A correcao principal: usa ./gradlew (era o erro que fazia falhar)
+    → Caminho no repo: .github/workflows/build-apk.yml
+
+COMO USAR NO GITHUB:
+  1. Va no seu repo > .github/workflows/build-apk.yml
+  2. Clique no lapis (editar)
+  3. Selecione tudo (Ctrl+A) e cole o conteudo do arquivo correto
+  4. Clique em Commit changes
+  5. Va em Actions > Run workflow
+  6. O APK fica pronto em ~10 min na aba Artifacts
