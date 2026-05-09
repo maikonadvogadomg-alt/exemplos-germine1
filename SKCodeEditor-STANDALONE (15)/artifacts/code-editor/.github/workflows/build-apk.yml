@@ -1,0 +1,219 @@
+name: Build APK Android (TWA)
+
+on:
+  workflow_dispatch:
+    inputs:
+      pages_url:
+        description: "URL do GitHub Pages (deixe vazio para calcular automaticamente)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar componentes Android
+        run: |
+          yes | sdkmanager \
+            "build-tools;34.0.0" \
+            "platforms;android-34" \
+            "platform-tools" 2>/dev/null || true
+          echo "ANDROID_HOME=$ANDROID_HOME"
+
+      - name: Calcular URL do GitHub Pages
+        id: url
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          INPUT_URL="${{ github.event.inputs.pages_url }}"
+          if [ -n "$INPUT_URL" ]; then
+            PAGES_URL="$INPUT_URL"
+          else
+            PAGES_URL="https://${OWNER}.github.io/${REPO}/"
+          fi
+          HOST=$(echo "$PAGES_URL" | sed 's|https://||' | sed 's|/.*||')
+          PKG="com.$(echo $OWNER | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g').$(echo $REPO | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')"
+          echo "pages_url=$PAGES_URL" >> $GITHUB_OUTPUT
+          echo "host=$HOST"           >> $GITHUB_OUTPUT
+          echo "pkg=$PKG"             >> $GITHUB_OUTPUT
+          echo "✅ URL: $PAGES_URL | Host: $HOST | Pacote: $PKG"
+
+      - name: Criar projeto Android Gradle (sem Bubblewrap)
+        run: |
+          PAGES_URL="${{ steps.url.outputs.pages_url }}"
+          HOST="${{ steps.url.outputs.host }}"
+          PKG="${{ steps.url.outputs.pkg }}"
+
+          mkdir -p twa-app/app/src/main/res/values
+          mkdir -p twa-app/gradle/wrapper
+
+          # ── settings.gradle ────────────────────────────────────────────────
+          cat > twa-app/settings.gradle << 'GRADLE'
+          rootProject.name = "SKCodeEditor"
+          include ':app'
+          GRADLE
+
+          # ── build.gradle (raiz) ────────────────────────────────────────────
+          cat > twa-app/build.gradle << 'GRADLE'
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.2.2' }
+          }
+          allprojects {
+              repositories { google(); mavenCentral() }
+          }
+          GRADLE
+
+          # ── app/build.gradle ───────────────────────────────────────────────
+          cat > twa-app/app/build.gradle << GRADLE
+          plugins { id 'com.android.application' }
+          android {
+              compileSdk 34
+              namespace '$PKG'
+              defaultConfig {
+                  applicationId '$PKG'
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+              buildTypes {
+                  debug { debuggable true }
+              }
+          }
+          dependencies {
+              implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+          }
+          GRADLE
+
+          # ── AndroidManifest.xml ────────────────────────────────────────────
+          cat > twa-app/app/src/main/AndroidManifest.xml << MANIFEST
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:label="SK Code Editor"
+                  android:allowBackup="true"
+                  android:theme="@android:style/Theme.Black.NoTitleBar">
+
+                  <activity
+                      android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
+                      android:exported="true">
+                      <meta-data
+                          android:name="android.support.customtabs.trusted.DEFAULT_URL"
+                          android:value="$PAGES_URL" />
+                      <meta-data
+                          android:name="android.support.customtabs.trusted.STATUS_BAR_COLOR"
+                          android:resource="@color/colorPrimary" />
+                      <meta-data
+                          android:name="android.support.customtabs.trusted.FALLBACK_STRATEGY"
+                          android:value="customtabs" />
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter android:autoVerify="true">
+                          <action android:name="android.intent.action.VIEW"/>
+                          <category android:name="android.intent.category.DEFAULT"/>
+                          <category android:name="android.intent.category.BROWSABLE"/>
+                          <data android:scheme="https" android:host="$HOST"/>
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name="com.google.androidbrowserhelper.trusted.DelegationService"
+                      android:exported="true"
+                      android:permission="android.permission.BIND_CUSTOM_TABS_CONNECTION">
+                      <intent-filter>
+                          <action android:name="android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE"/>
+                          <category android:name="android.intent.category.DEFAULT"/>
+                      </intent-filter>
+                  </service>
+
+              </application>
+          </manifest>
+          MANIFEST
+
+          # ── res/values/strings.xml ─────────────────────────────────────────
+          cat > twa-app/app/src/main/res/values/strings.xml << STRINGS
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">SK Code Editor</string>
+              <string name="asset_statements">[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"web","site":"$PAGES_URL"}}]</string>
+          </resources>
+          STRINGS
+
+          # ── res/values/colors.xml ──────────────────────────────────────────
+          cat > twa-app/app/src/main/res/values/colors.xml << 'COLORS'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="colorPrimary">#0d1117</color>
+              <color name="colorPrimaryDark">#0d1117</color>
+              <color name="colorAccent">#58a6ff</color>
+          </resources>
+          COLORS
+
+          # ── gradle/wrapper/gradle-wrapper.properties ───────────────────────
+          cat > twa-app/gradle/wrapper/gradle-wrapper.properties << 'WRAPPER'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          WRAPPER
+
+          echo "✅ Projeto Android criado em twa-app/"
+          find twa-app -type f | sort
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build APK
+        run: |
+          cd twa-app
+          gradle assembleDebug --no-daemon --stacktrace
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
+
+      - name: Localizar APK
+        id: apk
+        run: |
+          APK=$(find twa-app -name "*.apk" -type f | head -1)
+          if [ -z "$APK" ]; then
+            echo "❌ APK não encontrado!"; find twa-app -type f | tail -20; exit 1
+          fi
+          echo "path=$APK" >> $GITHUB_OUTPUT
+          echo "✅ APK: $APK ($(du -sh $APK | cut -f1))"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SK-Code-Editor-APK
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 30
+
+      - name: Salvar APK na pasta releases/
+        run: |
+          mkdir -p releases
+          cp "${{ steps.apk.outputs.path }}" releases/sk-code-editor.apk
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add releases/
+          git commit -m "APK gerado $(date +'%Y-%m-%d')" || true
+          git push || true
