@@ -1,0 +1,9 @@
+{
+	"appId": "com.maikon36.assistentejuridico",
+	"appName": "Assistente Jurídico IA",
+	"webDir": "dist",
+	"android": {},
+	"server": {
+		"androidScheme": "https"
+	}
+}
