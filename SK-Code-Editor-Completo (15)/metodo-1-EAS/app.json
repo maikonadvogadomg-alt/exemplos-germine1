@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "SK Code Editor",
+    "slug": "sk-code-editor",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d1117"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0d1117"
+      },
+      "package": "com.skeditor.app",
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+    },
+    "owner": "TROQUE_PELO_SEU_USUARIO_EXPO",
+    "extra": {
+      "eas": { "projectId": "GERE_EM_expo.dev_APOS_LOGIN" }
+    }
+  }
+}
